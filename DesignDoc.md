@@ -14,6 +14,7 @@ This project tackles the problem of multiple users trying collaborate in real ti
 2. Open Documents
 3. Edit Documents
 4. Subscribe to updates
+
 5. Exit
 ### Goals for server
 1. the server should maintain the documents in memory. 
