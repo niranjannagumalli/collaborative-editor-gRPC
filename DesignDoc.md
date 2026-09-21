@@ -14,21 +14,20 @@ This project tackles the problem of multiple users trying collaborate in real ti
 2. Open Documents
 3. Edit Documents
 4. Subscribe to updates
-
 5. Exit
+
 ### Goals for server
 1. the server should maintain the documents in memory. 
 2. handle requests from multiple clients
 3. create and retrieve documents
-4. apply edits to documents
+4. apply edits to documents. edit means that one can append at a certain position. 
 5. maintain subscribers for each document
-6. send updates to subscribed clients whenever a document changes. for now lets keep it within 0.5 seconds. 
-7. whenever multiple edits onto theh same document, handle in that specific order i.e. the order doesnt matter however they should be atomic. it should not be corrupted. 
-8. the server address should be accepted as a command-line argument. 
+6. the server address should be accepted as a command-line argument. 
 - the server should implement and give access to these apis.
-11. for now,w whenver a client creates a document with an already existing name, do not allow it to create a document. in future, give it two options, allow it to replace the content of the old file with the new content or just change the name. do this only if the file had been created by the same client in the past. 
-12. what if a client created a file and left the network, never to be contacted again? here we do not care about the scenario for now. maybe we just let do not allow the server to create a new a file with the same name.
-13. by editing, deletion is not supported. we only support appending at certain positions. 
+
+7. whenever multiple edits onto theh same document, handle in that specific order i.e. the order doesnt matter however they should be atomic. it should not be corrupted. 
+
+
 ### APIs
 1. CreateDocument(CreateDocumentRequest) -> CreateDocumentResponse: Creates a new document with a unique name and initial content
 2. GetDocument(GetDocumentRequest) -> GetDocumentResponse: returns the contents of a document. 
@@ -38,7 +37,7 @@ This project tackles the problem of multiple users trying collaborate in real ti
 ## High level design
 ### server
 #### createDocument
-1. The server should create maintain a table/dictionary. key is the file name. value is the content of the file whichis a string. i think storing a pointer to the location of the file is a better idea. 
+1. The server should create maintain a table/dictionary. key is the file name. value is the content of the file whichis a string. 
 2. everytime a new file creation comes, it should cross check against the existing keys. if it already exists, send an error saying file name already exists. 
 3. the client should send the name of the doc and content. the content is optional
 #### getDocument
@@ -47,15 +46,26 @@ This project tackles the problem of multiple users trying collaborate in real ti
 3. if the document doesn't exist, the server should say so. 
 
 #### editDocument(EditDocumentRequest)
-1. the client should mention the document name, the position, and the content which should be added. 
-2. we do not do deletion of content.
-3. if two servers send edits at approximately the same time, then we process them in whatever order we receive. 
-4. if the document doesn't exist, the server will say so. 
+
+1. acquire a lock, check if the docname is valid. use python's with keyword and put the lines of code which does the job till step 5 in the block inside with. 
+
+2. if the document doesn't exist, the raise error code and release the lock
+3. if valid:
+    
+    change the string associated with that file name
+4. maintain a global datastructure which contains key as file name. and a list of queues, each corresponding to the queues which belong to the clients subscribed to the respective file. 
+5. here this function, after updating the file at the server, does its duty as the producer of the producer/consumer pattern, puts() the new string (in the valid protobuf format) into the queues which are in the dict which has the file name as the key  
+6. release the lock. 
 
 #### subscribeToUpdates(UpdateRequest)
-1.  the client should be allowed to input a file name as part of this request and the server should push the updated file to the clients. 
-2. we should maintain another list which contaisn keys to list of clients which subscribed. we should push accordingly. 
+1. check if the file name is valid. return error code if invalid
+2. add a queue to the streaming dict. streaming dict contains file names as the keys and list of queues as values. 
+3. now enter the while true loop. 
+4. just use queue.get(), it will yield the data if it is there, else it will be blocked. 
+5. after yielding, it will check if the client is still active. use gRPC's context.is_active() for this.  if the client is not active, then we can remove the queue out of the list and break out of the loop. 
 
+#### exit(for the clients)
+1. on running exit, close the gRPC connection. 
 
 ## IDL and datastructures
 1. rpc createDocument(createDocumentRequest) returns (createDocumentResponse)
@@ -138,7 +148,3 @@ We will use error codes in the result section  to ensure better communication
 
 suppose, if the server realises that the given insertion is out of bounds of the file, it'll raise an error and return the above necessary error code instead.
 
-## on how to implement subscribe
-The subscribe function has a data structure where the keys are the names of the files and the value is a list of queues. each queue acts as the buffer for the producer consumer pattern where whenever the document is edited, for each element in the queue the server adds the new stuff(yields stuff) onto the queue which is conveyed to the client whos queue that is. 
-
-the subscribe function has a while true function which yields whenever some document is changed. it is being called whenever some edit happens on a file, then we yield the new content onto the queues in the stream and let gRPC send them to the client. 
