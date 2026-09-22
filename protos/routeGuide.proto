@@ -1,0 +1,62 @@
+syntax="proto3";
+
+
+
+service RouteGuide
+{
+    //creates a document
+    rpc createDocument(createDocumentRequest) returns (createDocumentResponse)  {}
+    
+    // retrieves the document
+    rpc getDocument(getDocumentRequest) returns (getDocumentResponse)   {}
+
+    //edit the document by adding some content at some specified place
+    rpc editDocument(editDocumentRequest) returns (editDocumentResponse) {}
+
+    //keep listening to updates. receives an updata whenever the file you've subscribed to is edited. 
+    rpc subscribeToUpdates(updateRequest) returns (stream documentUpdate)  {}
+
+
+}
+
+message createDocumentRequest
+{
+    string docName = 1;
+    string content = 2;
+}
+message createDocumentResponse
+{
+    string result = 1;
+}
+message getDocumentRequest
+{
+    string docName = 1;
+}
+message getDocumentResponse
+{
+    string docName = 1;
+    string content = 2;
+    
+}
+message editDocumentRequest
+{ 
+    string docName = 1;
+    string content = 2;
+    int32 position = 3;
+}
+message editDocumentResponse
+{
+    string docName = 1;
+    string content = 2;
+    
+}
+message updateRequest
+{
+    string docName = 1;
+}
+message documentUpdate
+{
+    string docName = 1;
+    string content = 2;
+    
+}
